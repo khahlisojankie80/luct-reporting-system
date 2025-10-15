@@ -74,7 +74,7 @@ const Dashboard = ({ userRole, userName, userId, onLogout }) => {
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  const API_BASE_URL = 'http://localhost:5001';
+  const API_BASE_URL = 'https://luct-reporting-system-osro.onrender.com';
 
   useEffect(() => {
     if (userRole) {
