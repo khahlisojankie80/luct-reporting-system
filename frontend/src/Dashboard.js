@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 
-const Dashboard = ({ userRole, userName, userId }) => {
+const Dashboard = ({ userRole, userName, userId, onLogout }) => {
   const [studentModules, setStudentModules] = useState([]);
   const [lecturerClasses, setLecturerClasses] = useState([]);
   const [lecturerReports, setLecturerReports] = useState([]);
@@ -25,6 +25,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({});
   const [ratingData, setRatingData] = useState({
     target_id: '',
     target_type: 'course',
@@ -55,18 +56,32 @@ const Dashboard = ({ userRole, userName, userId }) => {
     report_id: '',
     feedback: ''
   });
+  const [courseForm, setCourseForm] = useState({
+    code: '',
+    name: '',
+    lecturer_id: '',
+    credits: 3,
+    description: '',
+    faculty: 'FICT',
+    program: 'BSc in Information Technology',
+    class_name: 'BSCITY2S1',
+    total_registered: 0
+  });
   const [isClassRep, setIsClassRep] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showCourseManagement, setShowCourseManagement] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
+  const [showCourseForm, setShowCourseForm] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
   const API_BASE_URL = 'http://localhost:5001';
 
   useEffect(() => {
-    loadDashboardData();
-    if (userRole === 'pl' || userRole === 'prl') {
-      loadSystemData();
+    if (userRole) {
+      loadDashboardData();
+      if (userRole === 'pl' || userRole === 'prl') {
+        loadSystemData();
+      }
     }
   }, [userRole, activeTab]);
 
@@ -81,28 +96,24 @@ const Dashboard = ({ userRole, userName, userId }) => {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       if (userRole === 'student') {
-        // Load student modules
         const modulesResponse = await fetch(`${API_BASE_URL}/api/student/modules`, { headers });
         if (modulesResponse.ok) {
           const modules = await modulesResponse.json();
           setStudentModules(modules);
         }
 
-        // Load available courses
         const coursesResponse = await fetch(`${API_BASE_URL}/api/student/available-courses`, { headers });
         if (coursesResponse.ok) {
           const courses = await coursesResponse.json();
           setAvailableCourses(courses);
         }
 
-        // Load attendance records
         const attendanceResponse = await fetch(`${API_BASE_URL}/api/student/attendance`, { headers });
         if (attendanceResponse.ok) {
           const attendance = await attendanceResponse.json();
           setAttendanceRecords(attendance);
         }
 
-        // Check class rep status
         const classRepResponse = await fetch(`${API_BASE_URL}/api/student/classrep-status`, { headers });
         if (classRepResponse.ok) {
           const data = await classRepResponse.json();
@@ -217,7 +228,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         }
       }
 
-      // Load monitoring data
       if (activeTab === 'monitoring' && (userRole === 'student' || userRole === 'lecturer')) {
         const monitoringResponse = await fetch(`${API_BASE_URL}/api/monitoring`, { headers });
         if (monitoringResponse.ok) {
@@ -226,17 +236,16 @@ const Dashboard = ({ userRole, userName, userId }) => {
         }
       }
 
-      // Load ratings
       if (activeTab === 'rating' && (userRole === 'student' || userRole === 'lecturer')) {
         const ratingsResponse = await fetch(`${API_BASE_URL}/api/ratings`, { headers });
         if (ratingsResponse.ok) {
-          // Ratings are handled in the rating component
+          // Ratings loaded
         }
       }
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      setError('Failed to load data. Ensure backend is running.');
+      setError('Failed to load data. Please ensure the backend server is running.');
     } finally {
       setLoading(false);
     }
@@ -249,14 +258,12 @@ const Dashboard = ({ userRole, userName, userId }) => {
     try {
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Load all users
       const usersResponse = await fetch(`${API_BASE_URL}/api/users`, { headers });
       if (usersResponse.ok) {
         const users = await usersResponse.json();
         setAllUsers(users);
       }
 
-      // Load all courses
       const coursesResponse = await fetch(`${API_BASE_URL}/api/courses`, { headers });
       if (coursesResponse.ok) {
         const courses = await coursesResponse.json();
@@ -268,7 +275,53 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Student Functions
+  const handleSearch = (data, query, fields) => {
+    if (!query.trim()) return data;
+    
+    return data.filter(item => 
+      fields.some(field => 
+        String(item[field] || '').toLowerCase().includes(query.toLowerCase())
+      )
+    );
+  };
+
+  const getFilteredData = () => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) {
+      switch (activeTab) {
+        case 'courses': return userRole === 'student' ? availableCourses : plCourses;
+        case 'reports': return userRole === 'lecturer' ? lecturerReports : prlReports;
+        case 'classes': return userRole === 'lecturer' ? lecturerClasses : prlClasses;
+        case 'lecturers': return plLecturers;
+        case 'rating': return ratingsSummary;
+        default: return [];
+      }
+    }
+
+    switch (activeTab) {
+      case 'courses':
+        const coursesData = userRole === 'student' ? availableCourses : plCourses;
+        return handleSearch(coursesData, query, ['code', 'name', 'lecturer_name', 'program']);
+      
+      case 'reports':
+        const reportsData = userRole === 'lecturer' ? lecturerReports : prlReports;
+        return handleSearch(reportsData, query, ['course_code', 'course_name', 'lecturer_name', 'week_of_reporting']);
+      
+      case 'classes':
+        const classesData = userRole === 'lecturer' ? lecturerClasses : prlClasses;
+        return handleSearch(classesData, query, ['code', 'name', 'lecturer_name', 'class_name']);
+      
+      case 'lecturers':
+        return handleSearch(plLecturers, query, ['name', 'employee_id', 'qualification', 'specialization']);
+      
+      case 'rating':
+        return handleSearch(ratingsSummary, query, ['course_code', 'course_name', 'lecturer', 'program']);
+      
+      default:
+        return [];
+    }
+  };
+
   const handleRegisterModule = async (courseId, courseCode, courseName, lecturerName) => {
     const token = localStorage.getItem('token');
     try {
@@ -363,7 +416,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Lecturer Functions
   const handleSubmitReport = async () => {
     const token = localStorage.getItem('token');
     try {
@@ -404,7 +456,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // PRL Functions
   const handlePRLFeedback = async () => {
     const token = localStorage.getItem('token');
     try {
@@ -433,7 +484,125 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Rating System (for all roles)
+  const handleAddCourse = async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!courseForm.code || !courseForm.name) {
+      setError('Course code and name are required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/courses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(courseForm)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert('Course added successfully!');
+        setCourseForm({
+          code: '',
+          name: '',
+          lecturer_id: '',
+          credits: 3,
+          description: '',
+          faculty: 'FICT',
+          program: 'BSc in Information Technology',
+          class_name: 'BSCITY2S1',
+          total_registered: 0
+        });
+        setShowCourseForm(false);
+        await loadDashboardData();
+        await loadSystemData();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to add course');
+      }
+    } catch (error) {
+      console.error('Error adding course:', error);
+      setError('Error adding course: ' + error.message);
+    }
+  };
+
+  const handleAssignLecturer = async (courseId, lecturerId) => {
+    const token = localStorage.getItem('token');
+    if (!lecturerId) {
+      setError('Please select a lecturer');
+      return;
+    }
+
+    try {
+      const course = allSystemCourses.find(c => c.id === courseId);
+      const lecturer = allUsers.find(u => u.id === parseInt(lecturerId));
+      
+      if (!course) {
+        setError('Course not found');
+        return;
+      }
+
+      if (!lecturer) {
+        setError('Lecturer not found');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/courses/${courseId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...course,
+          lecturer_id: lecturer.id,
+          lecturer_name: lecturer.fullName
+        })
+      });
+
+      if (response.ok) {
+        alert(`Lecturer ${lecturer.fullName} assigned to ${course.code} successfully!`);
+        await loadDashboardData();
+        await loadSystemData();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to assign lecturer');
+      }
+    } catch (error) {
+      console.error('Error assigning lecturer:', error);
+      setError('Error assigning lecturer: ' + error.message);
+    }
+  };
+
+  const handleDeleteCourse = async (courseId, courseName) => {
+    const token = localStorage.getItem('token');
+    if (!window.confirm(`Are you sure you want to delete "${courseName}"? This action cannot be undone.`)) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/courses/${courseId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        alert('Course deleted successfully!');
+        await loadDashboardData();
+        await loadSystemData();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete course');
+      }
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      setError('Error deleting course: ' + error.message);
+    }
+  };
+
   const handleRatingSubmit = async () => {
     const token = localStorage.getItem('token');
     if (!ratingData.target_id || ratingData.rating === 0) {
@@ -472,7 +641,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     setRatingData(prev => ({ ...prev, rating: starValue }));
   };
 
-  // Timetable Download
   const handleDownloadTimetable = async () => {
     const token = localStorage.getItem('token');
     const endpoint = userRole === 'student' ? 'student' : 'lecturer';
@@ -502,56 +670,80 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Filter available courses based on search query
+  const handleDownloadReports = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reports/export`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reports_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        setError('Failed to download reports');
+      }
+    } catch (error) {
+      setError('Error downloading reports');
+    }
+  };
+
   const filteredCourses = availableCourses.filter(course =>
     course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     course.lecturer_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Check if a course is already registered
   const isCourseRegistered = (courseId) => {
     return studentModules.some(module => module.course_id === courseId);
   };
 
-  // Navigation Tabs
   const renderTabs = () => {
     const tabs = [];
     
     if (userRole === 'student') {
       tabs.push(
-        { id: 'dashboard', label: 'Dashboard', icon: '🎓' },
-        { id: 'courses', label: 'Available Courses', icon: '📚' },
-        { id: 'attendance', label: 'Attendance', icon: '📅' },
-        { id: 'monitoring', label: 'Monitoring', icon: '📊' },
-        { id: 'rating', label: 'Rating', icon: '⭐' }
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'courses', label: 'Available Courses' },
+        { id: 'attendance', label: 'Attendance' },
+        { id: 'monitoring', label: 'Monitoring' },
+        { id: 'rating', label: 'Rating' }
       );
     } else if (userRole === 'lecturer') {
       tabs.push(
-        { id: 'dashboard', label: 'Dashboard', icon: '👨‍🏫' },
-        { id: 'classes', label: 'My Classes', icon: '🏫' },
-        { id: 'reports', label: 'Reports', icon: '📋' },
-        { id: 'monitoring', label: 'Monitoring', icon: '📊' },
-        { id: 'rating', label: 'Rating', icon: '⭐' }
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'classes', label: 'My Classes' },
+        { id: 'reports', label: 'Reports' },
+        { id: 'monitoring', label: 'Monitoring' },
+        { id: 'rating', label: 'Rating' }
       );
     } else if (userRole === 'prl') {
       tabs.push(
-        { id: 'dashboard', label: 'Dashboard', icon: '📋' },
-        { id: 'courses', label: 'Courses', icon: '📚' },
-        { id: 'reports', label: 'Reports', icon: '📊' },
-        { id: 'monitoring', label: 'Monitoring', icon: '📈' },
-        { id: 'rating', label: 'Rating', icon: '⭐' },
-        { id: 'classes', label: 'Classes', icon: '🏫' }
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'courses', label: 'Courses' },
+        { id: 'reports', label: 'Reports' },
+        { id: 'monitoring', label: 'Monitoring' },
+        { id: 'rating', label: 'Rating' },
+        { id: 'classes', label: 'Classes' }
       );
     } else if (userRole === 'pl') {
       tabs.push(
-        { id: 'dashboard', label: 'Dashboard', icon: '👨‍💼' },
-        { id: 'courses', label: 'Courses', icon: '📚' },
-        { id: 'reports', label: 'Reports', icon: '📊' },
-        { id: 'monitoring', label: 'Monitoring', icon: '📈' },
-        { id: 'classes', label: 'Classes', icon: '🏫' },
-        { id: 'lecturers', label: 'Lecturers', icon: '👨‍🏫' },
-        { id: 'rating', label: 'Rating', icon: '⭐' }
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'courses', label: 'Courses' },
+        { id: 'reports', label: 'Reports' },
+        { id: 'monitoring', label: 'Monitoring' },
+        { id: 'classes', label: 'Classes' },
+        { id: 'lecturers', label: 'Lecturers' },
+        { id: 'rating', label: 'Rating' }
       );
     }
 
@@ -563,7 +755,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
             className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
-            <span className="tab-icon">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
@@ -571,7 +762,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     );
   };
 
-  // Student Dashboard Components
   const renderStudentDashboard = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -579,7 +769,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
           <div className="dashboard-cards">
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📚</div>
                 <h3>My Registered Modules</h3>
                 <span className="badge">{studentModules.length} modules</span>
               </div>
@@ -622,7 +811,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
 
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📅</div>
                 <h3>Quick Attendance</h3>
               </div>
               <div className="attendance-form">
@@ -679,7 +867,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
 
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">⚡</div>
                 <h3>Quick Actions</h3>
               </div>
               <div className="quick-actions">
@@ -710,7 +897,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📚</div>
               <h3>Available Courses - FICT BSCIT</h3>
               <div className="search-container">
                 <input
@@ -725,7 +911,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     className="clear-search"
                     onClick={() => setSearchQuery('')}
                   >
-                    ×
+                    Clear
                   </button>
                 )}
               </div>
@@ -787,10 +973,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                           disabled={isRegistered}
                         >
                           {isRegistered ? (
-                            <>
-                              <span className="check-icon">✓</span>
-                              Registered
-                            </>
+                            'Registered'
                           ) : (
                             'Register Now'
                           )}
@@ -831,7 +1014,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📊</div>
               <h3>My Attendance Records</h3>
               <button className="action-btn" onClick={handleDownloadTimetable}>
                 Download Timetable
@@ -877,7 +1059,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📈</div>
               <h3>Academic Monitoring</h3>
             </div>
             {monitoringData.length > 0 ? (
@@ -914,7 +1095,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">⭐</div>
               <h3>Rate Courses & Lectures</h3>
             </div>
             <div className="rating-interface">
@@ -964,7 +1144,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                             onClick={() => handleStarClick(star)}
                             title={`${star} star${star > 1 ? 's' : ''}`}
                           >
-                            ⭐
+                            ★
                           </span>
                         ))}
                         <span className="rating-text">{ratingData.rating}/5</span>
@@ -1001,7 +1181,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Lecturer Dashboard Components
   const renderLecturerDashboard = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -1009,7 +1188,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
           <div className="dashboard-cards">
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">🏫</div>
                 <h3>My Classes</h3>
                 <span className="badge">{lecturerClasses.length} classes</span>
               </div>
@@ -1039,7 +1217,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
 
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">⚡</div>
                 <h3>Quick Actions</h3>
               </div>
               <div className="quick-actions">
@@ -1070,7 +1247,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📚</div>
               <h3>My Teaching Schedule</h3>
               <button className="action-btn" onClick={handleDownloadTimetable}>
                 Download Timetable
@@ -1121,14 +1297,21 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📋</div>
               <h3>Lecture Reports</h3>
-              <button 
-                className="action-btn primary"
-                onClick={() => setShowReportForm(true)}
-              >
-                + New Report
-              </button>
+              <div className="header-actions">
+                <button 
+                  className="action-btn primary"
+                  onClick={() => setShowReportForm(true)}
+                >
+                  New Report
+                </button>
+                <button 
+                  className="action-btn secondary"
+                  onClick={handleDownloadReports}
+                >
+                  Export Reports
+                </button>
+              </div>
             </div>
 
             {showReportForm && (
@@ -1140,7 +1323,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                       className="close-btn"
                       onClick={() => setShowReportForm(false)}
                     >
-                      ×
+                      Close
                     </button>
                   </div>
                   
@@ -1344,7 +1527,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📈</div>
               <h3>Teaching Analytics</h3>
             </div>
             {monitoringData.length > 0 ? (
@@ -1381,18 +1563,84 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">⭐</div>
               <h3>Rating System</h3>
+              <button 
+                className="action-btn"
+                onClick={() => {
+                  setRatingData({
+                    target_id: '',
+                    target_type: 'course',
+                    rating: 0,
+                    comment: ''
+                  });
+                }}
+              >
+                Submit Rating
+              </button>
             </div>
+            
             <div className="rating-interface">
-              <p>As a lecturer, you can view ratings given by students for your courses.</p>
-              <div className="ratings-summary">
-                <h4>Student Ratings Summary</h4>
+              <div className="rating-form">
+                <select 
+                  className="form-select"
+                  value={ratingData.target_type}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_type: e.target.value, target_id: '' }))}
+                >
+                  <option value="course">Rate Course</option>
+                  <option value="student">Rate Student Performance</option>
+                </select>
+
+                <select 
+                  className="form-select"
+                  value={ratingData.target_id}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_id: e.target.value }))}
+                >
+                  <option value="">Select {ratingData.target_type}</option>
+                  {ratingData.target_type === 'course' && lecturerClasses.map(course => (
+                    <option key={course.id} value={course.id}>
+                      {course.name}
+                    </option>
+                  ))}
+                  {ratingData.target_type === 'student' && (
+                    <option value="overall">Overall Student Performance</option>
+                  )}
+                </select>
+                
+                {ratingData.target_id && (
+                  <>
+                    <div className="star-rating-container">
+                      <label>Your Rating:</label>
+                      <div className="star-rating">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <span 
+                            key={star} 
+                            className={`star ${star <= ratingData.rating ? 'active' : ''}`}
+                            onClick={() => handleStarClick(star)}
+                          >
+                            ★
+                          </span>
+                        ))}
+                        <span className="rating-text">{ratingData.rating}/5</span>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      className="submit-rating-btn primary"
+                      onClick={handleRatingSubmit}
+                    >
+                      Submit Rating
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="ratings-received">
+                <h4>Ratings for Your Courses</h4>
                 {lecturerClasses.map(course => (
                   <div key={course.id} className="rating-summary-item">
                     <strong>{course.code} - {course.name}</strong>
                     <div className="rating-stars">
-                      {'⭐'.repeat(4)} <span className="rating-text">4.2/5</span>
+                      {'★'.repeat(4)} <span className="rating-text">4.2/5</span>
                     </div>
                     <div className="rating-count">Based on 15 ratings</div>
                   </div>
@@ -1407,15 +1655,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // PRL Dashboard Components
   const renderPRLDashboard = () => {
+    const filteredData = getFilteredData();
+
     switch (activeTab) {
       case 'dashboard':
         return (
           <div className="dashboard-cards">
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📚</div>
                 <h3>Courses in My Stream</h3>
                 <span className="badge">{prlCourses.length} courses</span>
               </div>
@@ -1438,7 +1686,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
 
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📊</div>
                 <h3>Pending Reports</h3>
                 <span className="badge">
                   {prlReports.filter(r => r.status === 'Pending').length} pending
@@ -1453,6 +1700,28 @@ const Dashboard = ({ userRole, userName, userId }) => {
                 </button>
               </div>
             </div>
+
+            <div className="card">
+              <div className="card-header">
+                <h3>Submit Rating</h3>
+              </div>
+              <div className="quick-actions">
+                <button 
+                  className="action-btn"
+                  onClick={() => {
+                    setRatingData({
+                      target_id: '',
+                      target_type: 'course',
+                      rating: 0,
+                      comment: ''
+                    });
+                    setActiveTab('rating');
+                  }}
+                >
+                  Rate Courses
+                </button>
+              </div>
+            </div>
           </div>
         );
 
@@ -1460,10 +1729,26 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📚</div>
               <h3>All Courses in Stream</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search courses..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {prlCourses.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="courses-table">
                 <table>
                   <thead>
@@ -1477,7 +1762,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {prlCourses.map(course => (
+                    {filteredData.map(course => (
                       <tr key={course.id}>
                         <td><strong>{course.code}</strong></td>
                         <td>{course.name}</td>
@@ -1492,7 +1777,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No courses available.</p>
+                <p>No courses found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1502,12 +1795,19 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📋</div>
               <h3>Lecture Reports Review</h3>
+              <div className="header-actions">
+                <button 
+                  className="action-btn secondary"
+                  onClick={handleDownloadReports}
+                >
+                  Export Reports
+                </button>
+              </div>
             </div>
-            {prlReports.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="reports-list">
-                {prlReports.map(report => (
+                {filteredData.map(report => (
                   <div key={report.id} className="report-item">
                     <div className="report-header">
                       <strong>{report.course_code} - {report.course_name}</strong>
@@ -1554,7 +1854,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No reports to review.</p>
+                <p>No reports to review {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1564,10 +1872,26 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📈</div>
               <h3>Stream Monitoring</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search monitoring data..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {prlMonitoring.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="monitoring-table">
                 <table>
                   <thead>
@@ -1582,7 +1906,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {prlMonitoring.map((item, index) => (
+                    {filteredData.map((item, index) => (
                       <tr key={index}>
                         <td><strong>{item.course_name}</strong></td>
                         <td>{item.lecturer}</td>
@@ -1590,7 +1914,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                         <td>{item.performance_score}</td>
                         <td>
                           <div className="rating-display">
-                            {'⭐'.repeat(Math.floor(item.avg_rating))}
+                            {'★'.repeat(Math.floor(item.avg_rating))}
                             <span className="rating-value">({item.avg_rating})</span>
                           </div>
                         </td>
@@ -1603,7 +1927,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No monitoring data available.</p>
+                <p>No monitoring data found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1613,9 +1945,83 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">⭐</div>
               <h3>Course Ratings Overview</h3>
+              <div className="header-actions">
+                <button 
+                  className="action-btn"
+                  onClick={() => {
+                    setRatingData({
+                      target_id: '',
+                      target_type: 'course',
+                      rating: 0,
+                      comment: ''
+                    });
+                  }}
+                >
+                  Submit Rating
+                </button>
+              </div>
             </div>
+
+            <div className="rating-interface">
+              <div className="rating-form">
+                <h4>Submit Your Rating</h4>
+                <select 
+                  className="form-select"
+                  value={ratingData.target_type}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_type: e.target.value, target_id: '' }))}
+                >
+                  <option value="course">Rate Course</option>
+                  <option value="lecturer">Rate Lecturer</option>
+                </select>
+
+                <select 
+                  className="form-select"
+                  value={ratingData.target_id}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_id: e.target.value }))}
+                >
+                  <option value="">Select {ratingData.target_type}</option>
+                  {ratingData.target_type === 'course' && prlCourses.map(course => (
+                    <option key={course.id} value={course.id}>
+                      {course.name} - {course.lecturer_name}
+                    </option>
+                  ))}
+                  {ratingData.target_type === 'lecturer' && [...new Set(prlCourses.map(c => c.lecturer_name))].map(lecturer => (
+                    <option key={lecturer} value={lecturer}>
+                      {lecturer}
+                    </option>
+                  ))}
+                </select>
+                
+                {ratingData.target_id && (
+                  <>
+                    <div className="star-rating-container">
+                      <label>Your Rating:</label>
+                      <div className="star-rating">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <span 
+                            key={star} 
+                            className={`star ${star <= ratingData.rating ? 'active' : ''}`}
+                            onClick={() => handleStarClick(star)}
+                          >
+                            ★
+                          </span>
+                        ))}
+                        <span className="rating-text">{ratingData.rating}/5</span>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      className="submit-rating-btn primary"
+                      onClick={handleRatingSubmit}
+                    >
+                      Submit Rating
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
             {ratingsSummary.length > 0 ? (
               <div className="ratings-overview">
                 <table>
@@ -1635,7 +2041,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                         <td>{course.lecturer}</td>
                         <td>
                           <div className="rating-display">
-                            {'⭐'.repeat(Math.floor(course.average_rating))}
+                            {'★'.repeat(Math.floor(course.average_rating))}
                             <span className="rating-value">({course.average_rating})</span>
                           </div>
                         </td>
@@ -1644,7 +2050,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                           <div className="rating-distribution">
                             {[5, 4, 3, 2, 1].map(star => (
                               <span key={star} className="distribution-item">
-                                {star}⭐: {course.ratings_breakdown[star]}
+                                {star}★: {course.ratings_breakdown[star]}
                               </span>
                             ))}
                           </div>
@@ -1666,10 +2072,26 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">🏫</div>
               <h3>Classes Overview</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search classes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {prlClasses.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="classes-overview">
                 <table>
                   <thead>
@@ -1685,7 +2107,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {prlClasses.map((classItem, index) => (
+                    {filteredData.map((classItem, index) => (
                       <tr key={index}>
                         <td><strong>{classItem.code}</strong></td>
                         <td>{classItem.name}</td>
@@ -1706,7 +2128,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No classes data available.</p>
+                <p>No classes data found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1717,15 +2147,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // PL Dashboard Components
   const renderPLDashboard = () => {
+    const filteredData = getFilteredData();
+
     switch (activeTab) {
       case 'dashboard':
         return (
           <div className="dashboard-cards">
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📊</div>
                 <h3>Program Overview</h3>
               </div>
               <div className="program-stats">
@@ -1750,7 +2180,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
 
             <div className="card">
               <div className="card-header">
-                <div className="card-icon">📋</div>
                 <h3>Approved Reports</h3>
                 <span className="badge">
                   {plReports.filter(r => r.status === 'Approved').length} approved
@@ -1763,6 +2192,32 @@ const Dashboard = ({ userRole, userName, userId }) => {
                 >
                   View Reports
                 </button>
+                <button 
+                  className="action-btn secondary"
+                  onClick={handleDownloadReports}
+                >
+                  Export Reports
+                </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <h3>Course Management</h3>
+              </div>
+              <div className="quick-actions">
+                <button 
+                  className="action-btn primary"
+                  onClick={() => setShowCourseForm(true)}
+                >
+                  Add New Course
+                </button>
+                <button 
+                  className="action-btn"
+                  onClick={() => setActiveTab('courses')}
+                >
+                  Manage Courses
+                </button>
               </div>
             </div>
           </div>
@@ -1772,11 +2227,142 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📚</div>
-              <h3>Program Courses</h3>
+              <h3>Program Courses Management</h3>
+              <div className="header-actions">
+                <button 
+                  className="action-btn primary"
+                  onClick={() => setShowCourseForm(true)}
+                >
+                  Add New Course
+                </button>
+                <div className="search-container">
+                  <input
+                    type="text"
+                    placeholder="Search courses..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                  />
+                  {searchQuery && (
+                    <button 
+                      className="clear-search"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            {plCourses.length > 0 ? (
-              <div className="courses-table">
+
+            {showCourseForm && (
+              <div className="modal-overlay">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>Add New Course</h3>
+                    <button 
+                      className="close-btn"
+                      onClick={() => setShowCourseForm(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Course Code *</label>
+                      <input
+                        type="text"
+                        value={courseForm.code}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, code: e.target.value }))}
+                        placeholder="e.g., DIWA2110"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Course Name *</label>
+                      <input
+                        type="text"
+                        value={courseForm.name}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g., Web Application Development"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Lecturer</label>
+                      <select
+                        value={courseForm.lecturer_id}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, lecturer_id: e.target.value }))}
+                      >
+                        <option value="">Select Lecturer</option>
+                        {allUsers.filter(u => u.role === 'lecturer').map(lecturer => (
+                          <option key={lecturer.id} value={lecturer.id}>
+                            {lecturer.fullName} ({lecturer.qualification})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Credits</label>
+                      <input
+                        type="number"
+                        value={courseForm.credits}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, credits: parseInt(e.target.value) || 3 }))}
+                        min="1"
+                        max="6"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Program</label>
+                      <select
+                        value={courseForm.program}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, program: e.target.value }))}
+                      >
+                        <option value="BSc in Information Technology">BSc in Information Technology</option>
+                        <option value="BSc in Software Engineering with Multimedia">BSc in Software Engineering with Multimedia</option>
+                        <option value="Diploma in Information Technology">Diploma in Information Technology</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Class Name</label>
+                      <input
+                        type="text"
+                        value={courseForm.class_name}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, class_name: e.target.value }))}
+                        placeholder="e.g., BSCITY2S1"
+                      />
+                    </div>
+                    <div className="form-group full-width">
+                      <label>Description</label>
+                      <textarea
+                        value={courseForm.description}
+                        onChange={(e) => setCourseForm(prev => ({ ...prev, description: e.target.value }))}
+                        rows="3"
+                        placeholder="Course description..."
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-actions">
+                    <button 
+                      className="submit-btn primary"
+                      onClick={handleAddCourse}
+                      disabled={!courseForm.code || !courseForm.name}
+                    >
+                      Add Course
+                    </button>
+                    <button 
+                      className="cancel-btn"
+                      onClick={() => setShowCourseForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {filteredData.length > 0 ? (
+              <div className="courses-management-table">
                 <table>
                   <thead>
                     <tr>
@@ -1787,18 +2373,43 @@ const Dashboard = ({ userRole, userName, userId }) => {
                       <th>Program</th>
                       <th>Class</th>
                       <th>Students</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {plCourses.map(course => (
+                    {filteredData.map(course => (
                       <tr key={course.id}>
                         <td><strong>{course.code}</strong></td>
                         <td>{course.name}</td>
-                        <td>{course.lecturer_name}</td>
+                        <td>
+                          <select
+                            value={course.lecturer_id || ''}
+                            onChange={(e) => handleAssignLecturer(course.id, e.target.value)}
+                            className="lecturer-select"
+                          >
+                            <option value="">Assign Lecturer</option>
+                            {allUsers.filter(u => u.role === 'lecturer').map(lecturer => (
+                              <option key={lecturer.id} value={lecturer.id}>
+                                {lecturer.fullName} ({lecturer.qualification})
+                              </option>
+                            ))}
+                          </select>
+                        </td>
                         <td>{course.credits}</td>
                         <td>{course.program}</td>
                         <td>{course.class_name}</td>
                         <td>{course.total_registered}</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="delete-btn small"
+                              onClick={() => handleDeleteCourse(course.id, course.name)}
+                              title="Delete Course"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1806,7 +2417,21 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No courses available.</p>
+                <p>No courses found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
+                <button 
+                  className="action-btn primary"
+                  onClick={() => setShowCourseForm(true)}
+                >
+                  Add Your First Course
+                </button>
               </div>
             )}
           </div>
@@ -1816,10 +2441,34 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📊</div>
               <h3>Approved Reports</h3>
+              <div className="header-actions">
+                <button 
+                  className="action-btn secondary"
+                  onClick={handleDownloadReports}
+                >
+                  Export Reports
+                </button>
+                <div className="search-container">
+                  <input
+                    type="text"
+                    placeholder="Search reports..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                  />
+                  {searchQuery && (
+                    <button 
+                      className="clear-search"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            {plReports.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="reports-list">
                 <table className="reports-table">
                   <thead>
@@ -1833,7 +2482,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {plReports.map(report => (
+                    {filteredData.map(report => (
                       <tr key={report.id}>
                         <td>{report.course_code}</td>
                         <td>{report.lecturer_name}</td>
@@ -1848,7 +2497,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No approved reports available.</p>
+                <p>No approved reports found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1858,10 +2515,26 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">📈</div>
               <h3>Program Monitoring</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search programs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {plMonitoring.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="program-monitoring">
                 <table>
                   <thead>
@@ -1876,7 +2549,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {plMonitoring.map((program, index) => (
+                    {filteredData.map((program, index) => (
                       <tr key={index}>
                         <td><strong>{program.program}</strong></td>
                         <td>{program.total_courses}</td>
@@ -1885,7 +2558,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                         <td>{program.average_attendance}%</td>
                         <td>
                           <div className="rating-display">
-                            {'⭐'.repeat(Math.floor(program.average_rating))}
+                            {'★'.repeat(Math.floor(program.average_rating))}
                             <span className="rating-value">({program.average_rating})</span>
                           </div>
                         </td>
@@ -1897,7 +2570,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No program monitoring data available.</p>
+                <p>No program monitoring data found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1907,8 +2588,24 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">🏫</div>
               <h3>Program Classes</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search classes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             {plClasses.length > 0 ? (
               <div className="program-classes">
@@ -1939,10 +2636,26 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">👨‍🏫</div>
               <h3>Lecturers Overview</h3>
+              <div className="search-container">
+                <input
+                  type="text"
+                  placeholder="Search lecturers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {plLecturers.length > 0 ? (
+            {filteredData.length > 0 ? (
               <div className="lecturers-table">
                 <table>
                   <thead>
@@ -1958,7 +2671,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {plLecturers.map((lecturer, index) => (
+                    {filteredData.map((lecturer, index) => (
                       <tr key={index}>
                         <td><strong>{lecturer.name}</strong></td>
                         <td>{lecturer.employee_id}</td>
@@ -1968,7 +2681,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                         <td>{lecturer.total_students}</td>
                         <td>
                           <div className="rating-display">
-                            {'⭐'.repeat(Math.floor(lecturer.average_rating))}
+                            {'★'.repeat(Math.floor(lecturer.average_rating))}
                             <span className="rating-value">({lecturer.average_rating})</span>
                           </div>
                         </td>
@@ -1984,7 +2697,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No lecturers data available.</p>
+                <p>No lecturers found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1994,10 +2715,105 @@ const Dashboard = ({ userRole, userName, userId }) => {
         return (
           <div className="card full-width">
             <div className="card-header">
-              <div className="card-icon">⭐</div>
               <h3>Program Ratings Overview</h3>
+              <div className="header-actions">
+                <button 
+                  className="action-btn"
+                  onClick={() => {
+                    setRatingData({
+                      target_id: '',
+                      target_type: 'course',
+                      rating: 0,
+                      comment: ''
+                    });
+                  }}
+                >
+                  Submit Rating
+                </button>
+                <div className="search-container">
+                  <input
+                    type="text"
+                    placeholder="Search ratings..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                  />
+                  {searchQuery && (
+                    <button 
+                      className="clear-search"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            {ratingsSummary.length > 0 ? (
+
+            <div className="rating-interface">
+              <div className="rating-form">
+                <h4>Submit Your Rating</h4>
+                <select 
+                  className="form-select"
+                  value={ratingData.target_type}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_type: e.target.value, target_id: '' }))}
+                >
+                  <option value="course">Rate Course</option>
+                  <option value="lecturer">Rate Lecturer</option>
+                  <option value="program">Rate Program</option>
+                </select>
+
+                <select 
+                  className="form-select"
+                  value={ratingData.target_id}
+                  onChange={(e) => setRatingData(prev => ({ ...prev, target_id: e.target.value }))}
+                >
+                  <option value="">Select {ratingData.target_type}</option>
+                  {ratingData.target_type === 'course' && plCourses.map(course => (
+                    <option key={course.id} value={course.id}>
+                      {course.name} - {course.lecturer_name}
+                    </option>
+                  ))}
+                  {ratingData.target_type === 'lecturer' && [...new Set(plCourses.map(c => c.lecturer_name))].map(lecturer => (
+                    <option key={lecturer} value={lecturer}>
+                      {lecturer}
+                    </option>
+                  ))}
+                  {ratingData.target_type === 'program' && (
+                    <option value="BSc IT">BSc in Information Technology</option>
+                  )}
+                </select>
+                
+                {ratingData.target_id && (
+                  <>
+                    <div className="star-rating-container">
+                      <label>Your Rating:</label>
+                      <div className="star-rating">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <span 
+                            key={star} 
+                            className={`star ${star <= ratingData.rating ? 'active' : ''}`}
+                            onClick={() => handleStarClick(star)}
+                          >
+                            ★
+                          </span>
+                        ))}
+                        <span className="rating-text">{ratingData.rating}/5</span>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      className="submit-rating-btn primary"
+                      onClick={handleRatingSubmit}
+                    >
+                      Submit Rating
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {filteredData.length > 0 ? (
               <div className="ratings-overview">
                 <table>
                   <thead>
@@ -2011,14 +2827,14 @@ const Dashboard = ({ userRole, userName, userId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {ratingsSummary.map((course, index) => (
+                    {filteredData.map((course, index) => (
                       <tr key={index}>
                         <td><strong>{course.course_code}</strong> - {course.course_name}</td>
                         <td>{course.lecturer}</td>
                         <td>{course.program || 'BSc IT'}</td>
                         <td>
                           <div className="rating-display">
-                            {'⭐'.repeat(Math.floor(course.average_rating))}
+                            {'★'.repeat(Math.floor(course.average_rating))}
                             <span className="rating-value">({course.average_rating})</span>
                           </div>
                         </td>
@@ -2027,7 +2843,7 @@ const Dashboard = ({ userRole, userName, userId }) => {
                           <div className="rating-distribution">
                             {[5, 4, 3, 2, 1].map(star => (
                               <span key={star} className="distribution-item">
-                                {star}⭐: {course.ratings_breakdown[star]}
+                                {star}★: {course.ratings_breakdown[star]}
                               </span>
                             ))}
                           </div>
@@ -2039,7 +2855,15 @@ const Dashboard = ({ userRole, userName, userId }) => {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No ratings data available.</p>
+                <p>No ratings data found {searchQuery && `matching "${searchQuery}"`}</p>
+                {searchQuery && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear search
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2050,7 +2874,6 @@ const Dashboard = ({ userRole, userName, userId }) => {
     }
   };
 
-  // Main Dashboard Render
   const renderDashboard = () => {
     switch (userRole) {
       case 'student':
@@ -2079,33 +2902,67 @@ const Dashboard = ({ userRole, userName, userId }) => {
     <div className="dashboard-container">
       <div className="dashboard-header">
         <h2>
-          {userRole === 'student' && '🎓 Student Portal - LUCT FICT'}
-          {userRole === 'lecturer' && '👨‍🏫 Lecturer Portal - LUCT FICT'}
-          {userRole === 'prl' && '📋 Principal Lecturer Dashboard - LUCT FICT'}
-          {userRole === 'pl' && '👨‍💼 Program Leader Dashboard - LUCT FICT'}
+          {userRole === 'student' && 'Student Portal'}
+          {userRole === 'lecturer' && 'Lecturer Portal'}
+          {userRole === 'prl' && 'Principal Lecturer Dashboard'}
+          {userRole === 'pl' && 'Program Leader Dashboard'}
         </h2>
         <p>
-          Welcome back, {userName}! 
-          {userRole === 'student' && ' Manage your academic journey.'}
-          {userRole === 'lecturer' && ' Manage your teaching activities.'}
-          {userRole === 'prl' && ' Oversee academic quality in your stream.'}
-          {userRole === 'pl' && ' Lead and manage the academic program.'}
+          Welcome back, {userName}!
         </p>
-        <div className={`user-badge badge-${userRole}`}>
-          {userRole.toUpperCase()} Access
-          {userRole === 'student' && isClassRep && ' | Class Representative'}
+        <div className="header-actions">
+          <div className={`user-badge badge-${userRole}`}>
+            {userRole.toUpperCase()} Access
+            {userRole === 'student' && isClassRep && ' | Class Representative'}
+          </div>
+          <button className="logout-btn" onClick={onLogout}>
+            Logout
+          </button>
         </div>
       </div>
       
       {error && (
         <div className="error-banner">
           {error}
-          <button onClick={() => setError('')} className="close-error">×</button>
+          <button onClick={() => setError('')} className="close-error">Close</button>
         </div>
       )}
 
       {renderTabs()}
+
+      {['courses', 'reports', 'monitoring', 'classes', 'lecturers', 'rating'].includes(activeTab) && (
+        <div className="search-section">
+          <div className="search-container">
+            <input
+              type="text"
+              placeholder={`Search ${activeTab}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            {searchQuery && (
+              <button 
+                className="clear-search"
+                onClick={() => setSearchQuery('')}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <div className="search-results-info">
+              Found {getFilteredData().length} results for "{searchQuery}"
+            </div>
+          )}
+        </div>
+      )}
+
       {renderDashboard()}
+
+      <footer className="dashboard-footer">
+        <p>© 2025 Limkokwing University of Creative Technology - Faculty of ICT. All rights reserved.</p>
+        <p>Web Application Development - DIWA2110 | Assignment 2</p>
+      </footer>
     </div>
   );
 };

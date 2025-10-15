@@ -26,13 +26,13 @@ const SearchView = ({ user }) => (
           <h3>Search Functionality</h3>
           <p>Search across all reports by:</p>
           <ul>
-            <li>📚 Course Name or Code</li>
-            <li>🎯 Topic Taught</li>
-            <li>👨‍🏫 Lecturer Name</li>
-            <li>📅 Date Range</li>
-            <li>🏫 Faculty</li>
+            <li> Course Name or Code</li>
+            <li> Topic Taught</li>
+            <li> Lecturer Name</li>
+            <li> Date Range</li>
+            <li> Faculty</li>
           </ul>
-          <p className="coming-soon">🔧 Search feature coming soon...</p>
+          <p className="coming-soon"> Search feature coming soon...</p>
         </div>
       </div>
     </div>
@@ -53,35 +53,35 @@ const Footer = () => (
       <div className="footer-section">
         <h3>Contact Information</h3>
         <p>
-          📧 Email: liteboho.molaoa@limkokwing.ac.ls<br/>
-          🏢 Department: Faculty of ICT<br/>
-          📍 Limkokwing University of Creative Technology
+           Email: liteboho.molaoa@limkokwing.ac.ls<br/>
+           Department: Faculty of ICT<br/>
+           Limkokwing University of Creative Technology
         </p>
       </div>
       
       <div className="footer-section">
         <h3>Quick Links</h3>
         <p>
-          <a href="#dashboard">📊 Dashboard</a>
-          <a href="#reports">📈 View Reports</a>
-          <a href="#report">📝 Submit Report</a>
-          <a href="#search">🔍 Search</a>
+          <a href="#dashboard"> Dashboard</a>
+          <a href="#reports"> View Reports</a>
+          <a href="#report"> Submit Report</a>
+          <a href="#search"> Search</a>
         </p>
       </div>
       
       <div className="footer-section">
         <h3>System Modules</h3>
         <p>
-          <a href="#student">🎓 Student Portal</a>
-          <a href="#lecturer">👨‍🏫 Lecturer Portal</a>
-          <a href="#prl">📋 Principal Lecturer</a>
-          <a href="#pl">👨‍💼 Program Leader</a>
+          <a href="#student"> Student Portal</a>
+          <a href="#lecturer"> Lecturer Portal</a>
+          <a href="#prl"> Principal Lecturer</a>
+          <a href="#pl"> Program Leader</a>
         </p>
       </div>
     </div>
     
     <div className="footer-bottom">
-      <p>&copy; 2024 Limkokwing University of Creative Technology - Faculty of ICT. All rights reserved.</p>
+      <p>&copy; 2025 Limkokwing University of Creative Technology - Faculty of ICT. All rights reserved.</p>
       <p>Web Application Development - DIWA2110 | Assignment 2</p>
     </div>
   </footer>
@@ -213,14 +213,14 @@ function App() {
           className={`nav-btn ${isActive('dashboard')}`}
           onClick={() => handleNavigation('dashboard')}
         >
-          📊 Dashboard
+           Dashboard
         </button>
         {['lecturer', 'prl', 'pl'].includes(user.role) && (
           <button
             className={`nav-btn ${isActive('report')}`}
             onClick={() => handleNavigation('report')}
           >
-            📝 Submit Report
+             Submit Report
           </button>
         )}
         {['lecturer', 'prl', 'pl'].includes(user.role) && (
@@ -228,7 +228,7 @@ function App() {
             className={`nav-btn ${isActive('reports')}`}
             onClick={() => handleNavigation('reports')}
           >
-            📈 View Reports
+            View Reports
           </button>
         )}
         <button
@@ -242,7 +242,7 @@ function App() {
             className={`nav-btn ${isActive('student')}`}
             onClick={() => handleNavigation('student')}
           >
-            🎓 My Portal
+            My Portal
           </button>
         )}
         {user.role === 'lecturer' && (
@@ -250,7 +250,7 @@ function App() {
             className={`nav-btn ${isActive('lecturer')}`}
             onClick={() => handleNavigation('lecturer')}
           >
-            👨‍🏫 My Portal
+            My Portal
           </button>
         )}
         {user.role === 'prl' && (
@@ -258,7 +258,7 @@ function App() {
             className={`nav-btn ${isActive('prl')}`}
             onClick={() => handleNavigation('prl')}
           >
-            📋 PRL Portal
+            PRL Portal
           </button>
         )}
         {user.role === 'pl' && (
@@ -266,14 +266,14 @@ function App() {
             className={`nav-btn ${isActive('pl')}`}
             onClick={() => handleNavigation('pl')}
           >
-            👨‍💼 PL Portal
+            PL Portal
           </button>
         )}
         <button
           className={`nav-btn logout-btn ${isActive('logout')}`}
           onClick={handleLogout}
         >
-          🚪 Logout
+          Logout
         </button>
       </nav>
     );
@@ -286,7 +286,7 @@ function App() {
         <header>
           <div className="header-content">
             <div className="logo">
-              <div className="logo-icon">📊</div>
+              <div className="logo-icon"></div>
               <div className="logo-text">
                 <h1>LUCT Reporting System</h1>
                 <p>Faculty of Information Communication Technology</p>
@@ -299,7 +299,7 @@ function App() {
           <div className="auth-container">
             {!showRegister ? (
               <div className="auth-form">
-                <h2>🔐 Welcome Back</h2>
+                <h2> Welcome Back</h2>
                 <p style={{ color: '#7f8c8d', marginBottom: '30px' }}>
                   Sign in to your account
                 </p>
@@ -308,7 +308,7 @@ function App() {
                   name="username" 
                   value={loginData.username} 
                   onChange={handleLoginChange} 
-                  placeholder="👤 Username" 
+                  placeholder="Username" 
                   disabled={loading}
                 />
                 <input 
@@ -316,7 +316,7 @@ function App() {
                   type="password" 
                   value={loginData.password} 
                   onChange={handleLoginChange} 
-                  placeholder="🔒 Password" 
+                  placeholder=" Password" 
                   disabled={loading}
                 />
                 
@@ -328,14 +328,14 @@ function App() {
                     onClick={handleLogin}
                     disabled={loading}
                   >
-                    {loading ? '⏳ Signing in...' : '🚀 Sign In'}
+                    {loading ? ' Signing in...' : ' Sign In'}
                   </button>
                   <button 
                     className="auth-btn register-btn" 
                     onClick={() => setShowRegister(true)}
                     disabled={loading}
                   >
-                    📝 Create Account
+                     Create Account
                   </button>
                 </div>
 
@@ -365,7 +365,7 @@ function App() {
       <header>
         <div className="header-content">
           <div className="logo">
-            <div className="logo-icon">📊</div>
+            <div className="logo-icon"></div>
             <div className="logo-text">
               <h1>LUCT Reporting System</h1>
               <p>Welcome, {user.fullName || user.username} ({user.role})</p>
